@@ -24,7 +24,9 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          ref: main
 
       - name: Scarica l'export Brizy
         run: git clone --depth 1 "https://github.com/${BRIZY_REPO}.git" /tmp/brizy
@@ -41,5 +43,6 @@ jobs:
             echo "Nessuna modifica"
           else
             git commit -m "Sync da Brizy $(cd /tmp/brizy && git rev-parse --short HEAD)"
+            git pull --rebase -X theirs origin main
             git push
           fi
