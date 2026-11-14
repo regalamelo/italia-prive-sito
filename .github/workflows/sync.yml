@@ -1,0 +1,45 @@
+name: Sincronizza da Brizy
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # controlla ogni 15 minuti
+  workflow_dispatch:          # avvio manuale (pulsante "Run workflow")
+  repository_dispatch:        # avvio da n8n
+  push:
+    branches: [main]
+    paths: ["extra/**", "scripts/**", ".github/workflows/**"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
+env:
+  BRIZY_REPO: regalamelo/brizy-project-23428941
+  BRIZY_LIVE_URL: https://orca7fd00f5e.brizy.site/
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scarica l'export Brizy
+        run: git clone --depth 1 "https://github.com/${BRIZY_REPO}.git" /tmp/brizy
+
+      - name: Costruisci il sito
+        run: python3 scripts/build.py /tmp/brizy site extra
+
+      - name: Salva se ci sono modifiche
+        run: |
+          git config user.name "brizy-sync"
+          git config user.email "brizy-sync@users.noreply.github.com"
+          git add -A site
+          if git diff --cached --quiet; then
+            echo "Nessuna modifica"
+          else
+            git commit -m "Sync da Brizy $(cd /tmp/brizy && git rev-parse --short HEAD)"
+            git push
+          fi
