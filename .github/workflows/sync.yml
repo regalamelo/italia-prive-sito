@@ -7,7 +7,7 @@ on:
   repository_dispatch:        # avvio da n8n
   push:
     branches: [main]
-    paths: ["extra/**", "scripts/**", ".github/workflows/**"]
+    paths: ["extra/**", "articoli/**", "scripts/**", ".github/workflows/**"]
 
 permissions:
   contents: write
@@ -33,6 +33,9 @@ jobs:
 
       - name: Costruisci il sito
         run: python3 scripts/build.py /tmp/brizy site extra
+
+      - name: Crea gli articoli
+        run: python3 scripts/articoli.py site articoli
 
       - name: Salva se ci sono modifiche
         run: |
