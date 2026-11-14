@@ -6,7 +6,8 @@ Formato di un articolo (articoli/<indirizzo>.md):
 ---
 titolo: Titolo dell'articolo
 descrizione: Frase per Google e per le anteprime social
-immagine: https://... (facoltativa)
+immagine: https://... (facoltativa, consigliata)
+categoria: news | tendenze | storie | eccellenze (facoltativa)
 data: 2026-11-14 (facoltativa)
 ---
 Primo paragrafo.
@@ -41,6 +42,7 @@ if not os.path.isdir(ARTICOLI):
 modello = open(os.path.join(SITE, MODELLO), encoding="utf-8").read()
 slug_modello = MODELLO[:-5]
 nuovi = []
+schede = []
 
 for nome in sorted(os.listdir(ARTICOLI)):
     if not nome.endswith(".md") or nome.startswith("_"):
@@ -82,6 +84,8 @@ for nome in sorted(os.listdir(ARTICOLI)):
 
     open(os.path.join(SITE, slug + ".html"), "w", encoding="utf-8").write(h)
     nuovi.append((slug, meta.get("data") or datetime.date.today().isoformat()))
+    schede.append({"slug": slug, "titolo": titolo, "descr": descr, "immagine": meta.get("immagine", ""),
+                   "categoria": meta.get("categoria", "").lower().strip(), "data": nuovi[-1][1]})
     print("Articolo creato:", slug)
 
 # sitemap
@@ -93,3 +97,82 @@ if nuovi and os.path.exists(smp):
     righe = "".join(f"<url><loc>{base}/{slug}</loc><lastmod>{d}</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>"
                     for slug, d in nuovi if f"/{slug}<" not in s)
     open(smp, "w", encoding="utf-8").write(s.replace("</urlset>", righe + "</urlset>"))
+
+# ---------- elenchi articoli (home e pagine categoria) ----------
+CATEGORIE = [c.strip() for c in os.environ.get("CATEGORIE", "news,tendenze,storie,eccellenze").split(",") if c.strip()]
+WRAP = '<div class="brz-posts__wrapper">'
+ITEM = '<div class="brz-posts__item">'
+
+def fine_div(h, i):
+    """posizione subito dopo il </div> che chiude il <div> che inizia in i"""
+    d = 0
+    for m in re.finditer(r"<(/?)div\b[^>]*>", h[i:]):
+        d += -1 if m.group(1) else 1
+        if d == 0:
+            return i + m.end()
+    return len(h)
+
+def blocchi(h):
+    out = []
+    i = h.find(WRAP)
+    while i >= 0:
+        e = fine_div(h, i)
+        items, j = [], i + len(WRAP)
+        while h.startswith(ITEM, j):
+            k = fine_div(h, j)
+            items.append(h[j:k])
+            j = k
+        out.append((i, e, items))
+        i = h.find(WRAP, e)
+    return out
+
+def slug_di(item):
+    m = re.search(r'href="([^"#/][^"]*)"', item)
+    return m.group(1) if m else ""
+
+def scheda(modello, a):
+    vecchio = slug_di(modello)
+    c = modello.replace(f'href="{vecchio}"', f'href="{a["slug"]}"')
+    c = re.sub(r'(class="brz-wp-title-content"[^>]*>).*?(</)', lambda m: m.group(1) + html.escape(a["titolo"]) + m.group(2), c, flags=re.S)
+    c = re.sub(r'(class="brz-wp-post-excerpt-content"[^>]*>).*?(</)', lambda m: m.group(1) + html.escape(a["descr"]) + m.group(2), c, flags=re.S)
+    if a["immagine"]:
+        url = html.escape(a["immagine"])
+        def pic(m):
+            p = re.sub(r"<source[^>]*>", "", m.group(0))
+            p = re.sub(r'\ssrcset="[^"]*"', "", p)
+            p = re.sub(r'\ssrc="[^"]*"', f' src="{url}"', p)
+            p = re.sub(r'\salt="[^"]*"', f' alt="{html.escape(a["titolo"])}"', p)
+            return p.replace("<img ", '<img style="object-fit:cover;width:100%;height:100%" ', 1)
+        c = re.sub(r"<picture.*?</picture>", pic, c, flags=re.S)
+    return c
+
+if schede:
+    schede.sort(key=lambda a: a["data"], reverse=True)
+    ordine = {}
+    for cat in CATEGORIE:
+        f = os.path.join(SITE, cat + ".html")
+        if os.path.exists(f):
+            hc = open(f, encoding="utf-8").read()
+            ordine[cat] = [slug_di(it) for _, _, its in blocchi(hc) for it in its]
+    pagine = ["index.html"] + [c + ".html" for c in ordine]
+    for pag in pagine:
+        f = os.path.join(SITE, pag)
+        h = open(f, encoding="utf-8").read()
+        cat_pagina = pag[:-5] if pag != "index.html" else None
+        for i, e, items in reversed(blocchi(h)):
+            if not items:
+                continue
+            slugs = [slug_di(it) for it in items]
+            if cat_pagina:
+                cat = cat_pagina
+            else:
+                cat = next((c for c, lst in ordine.items() if lst[:len(slugs)] == slugs), "tutte")
+            da_aggiungere = [a for a in schede if (cat == "tutte" or a["categoria"] == cat) and a["slug"] not in slugs]
+            if not da_aggiungere:
+                continue
+            nuovi_items = [scheda(items[0], a) for a in da_aggiungere] + items
+            if not cat_pagina:
+                nuovi_items = nuovi_items[:len(items)]   # in home resta lo stesso numero di articoli
+            h = h[:i] + WRAP + "".join(nuovi_items) + h[i + len(WRAP) + sum(map(len, items)):]
+            print(f"{pag}: elenco '{cat}' aggiornato")
+        open(f, "w", encoding="utf-8").write(h)
