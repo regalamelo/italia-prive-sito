@@ -35,6 +35,22 @@ def pulisci(t):
 def una_riga(v):
     return " ".join(str(v or "").split())
 
+# righe iniziali scritte dal Gem (Titolo:, Descrizione:, Categoria:, Foto:, ---) -> dati dell'articolo
+CAMPI = {"titolo": "titolo", "descrizione": "descrizione", "categoria": "categoria", "foto": "parole_chiave_foto"}
+_par = pulisci(testo).split("\n\n")
+while _par:
+    m = re.match(r"^[*#\s]*(titolo|descrizione|categoria|foto)[*\s]*:[*\s]*(.*?)[*\s]*$", _par[0], re.I)
+    if m:
+        chiave = CAMPI[m.group(1).lower()]
+        if m.group(2) and (chiave != "titolo" or not d.get("titolo")):
+            d[chiave] = m.group(2)
+        _par.pop(0)
+    elif re.fullmatch(r"[-_*\s]{3,}", _par[0]):
+        _par.pop(0)
+    else:
+        break
+testo = "\n\n".join(_par)
+
 slug = slugify(d.get("slug") or titolo)
 data = una_riga(d.get("data")) or datetime.date.today().isoformat()
 meta = {
