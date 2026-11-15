@@ -3,7 +3,8 @@
 
 1. Copia l'export Brizy (archivio di Brizy) in site/
 2. Scarica i file JavaScript "preview.*.js" che Brizy non esporta
-3. Aggiunge i file della cartella extra/ (robots.txt, llms.txt, articoli, ecc.)
+3. Aggiunge i file della cartella extra/ (robots.txt, llms.txt, ecc.)
+4. Corregge gli indirizzi: sitemap e link canonici puntano al dominio vero (DOMINIO)
 """
 import os, re, shutil, sys, urllib.request
 
@@ -11,6 +12,7 @@ SRC, OUT, EXTRA = sys.argv[1], sys.argv[2], sys.argv[3]
 LIVE = os.environ.get("BRIZY_LIVE_URL", "")
 FREE_BASE = os.environ.get("BRIZY_FREE_BASE", "https://b-cloud.becdn.net/builds/free/385-cloud/editor/js/")
 PRO_BASE = os.environ.get("BRIZY_PRO_BASE", "https://b-cloud.becdn.net/builds/pro/258-cloud/js/")
+DOMINIO = os.environ.get("DOMINIO", "").rstrip("/")
 UA = {"User-Agent": "Mozilla/5.0 (brizy-sync)"}
 
 def get(url):
@@ -82,3 +84,20 @@ for root, _, files in os.walk(EXTRA):
 
 if missing:
     print(f"::warning::{len(missing)} file JS non scaricati: usati i redirect verso il CDN di Brizy")
+
+# 4. indirizzi: *.brizy.site e www.<dominio> -> DOMINIO
+if DOMINIO:
+    host = DOMINIO.split("://", 1)[1]
+    varianti = [] if host.startswith("www.") else ["https://www." + host, "http://www." + host]
+    for root, _, files in os.walk(OUT):
+        for f in files:
+            if not f.endswith((".html", ".xml", ".txt", ".json")):
+                continue
+            p = os.path.join(root, f)
+            s = open(p, encoding="utf-8", errors="ignore").read()
+            n = re.sub(r"https?://[a-z0-9-]+\.brizy\.site", DOMINIO, s)
+            for v in varianti:
+                n = n.replace(v, DOMINIO)
+            if n != s:
+                open(p, "w", encoding="utf-8").write(n)
+    print("Indirizzi riscritti verso", DOMINIO)
