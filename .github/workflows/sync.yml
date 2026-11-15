@@ -52,7 +52,7 @@ jobs:
 
       - name: Scrivi articolo con l'IA (Gemini)
         id: ia
-        if: (github.event_name == 'repository_dispatch' && github.event.action == 'nuovo-argomento') || (github.event_name == 'workflow_dispatch' && inputs.argomento != '')
+        if: (github.event_name == 'repository_dispatch' && github.event.action == 'nuovo-argomento' && github.event.client_payload.azione != 'cambia-foto') || (github.event_name == 'workflow_dispatch' && inputs.argomento != '')
         env:
           ARGOMENTO: ${{ github.event.client_payload.argomento || inputs.argomento }}
           CATEGORIA: ${{ github.event.client_payload.categoria || inputs.categoria }}
@@ -60,6 +60,16 @@ jobs:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: python3 scripts/genera_articolo.py
+
+      - name: Cambia la foto di un articolo
+        if: github.event_name == 'repository_dispatch' && github.event.client_payload.azione == 'cambia-foto'
+        env:
+          ARTICOLO: ${{ github.event.client_payload.articolo }}
+          FOTO: ${{ github.event.client_payload.foto }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: python3 scripts/cambia_foto.py
 
       - name: Scarica l'export Brizy
         run: git clone --depth 1 "https://github.com/${BRIZY_REPO}.git" /tmp/brizy
