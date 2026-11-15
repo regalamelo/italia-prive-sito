@@ -6,7 +6,9 @@ Segreti: GEMINI_API_KEY (obbligatorio), PEXELS_API_KEY (facoltativo, per la foto
 Variabili del sito: SITO_NOME, SITO_TEMA, CATEGORIE, GEMINI_MODEL (facoltativa)
 Risultato: articoli/<slug>.md (+ extra/img/articoli/<slug>.jpg)
 """
-import datetime, json, os, re, sys, unicodedata, urllib.parse, urllib.request
+import datetime, json, os, re, sys, time, unicodedata, urllib.error, urllib.parse, urllib.request
+
+sys.stdout.reconfigure(line_buffering=True)  # log visibili subito su GitHub
 
 ARG = (os.environ.get("ARGOMENTO") or "").strip()
 if not ARG:
@@ -66,27 +68,55 @@ def modelli_disponibili():
         print("Elenco modelli non disponibile:", e)
         return []
 
+def chiama(modello, gen_cfg):
+    """Risposta in streaming: se Gemini resta muto per 90 secondi si passa oltre (niente attese infinite)."""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{modello}:streamGenerateContent?alt=sse"
+    body = json.dumps({"contents": [{"role": "user", "parts": [{"text": PROMPT}]}], "generationConfig": gen_cfg}).encode()
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json", "x-goog-api-key": KEY})
+    parti = []
+    with urllib.request.urlopen(req, timeout=90) as r:
+        for riga in r:
+            riga = riga.decode("utf-8", "ignore").strip()
+            if not riga.startswith("data:"):
+                continue
+            d = json.loads(riga[5:])
+            for c in d.get("candidates", []):
+                for p in c.get("content", {}).get("parts", []):
+                    if not p.get("thought"):
+                        parti.append(p.get("text", ""))
+    return json.loads("".join(parti))
+
 def gemini():
-    body = json.dumps({
-        "contents": [{"role": "user", "parts": [{"text": PROMPT}]}],
-        "generationConfig": {"responseMimeType": "application/json", "responseSchema": SCHEMA, "temperature": 0.8},
-    }).encode()
+    base = {"responseMimeType": "application/json", "responseSchema": SCHEMA, "temperature": 0.8}
+    configurazioni = [dict(base, thinkingConfig={"thinkingLevel": "low"}),
+                      dict(base, thinkingConfig={"thinkingBudget": 0}),
+                      base]
     candidati = []
     for m in MODELLI + modelli_disponibili():
         if m not in candidati:
             candidati.append(m)
-    ultimo = None
-    for modello in candidati[:6]:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{modello}:generateContent"
-        try:
-            r = json.loads(http(url, body, {"Content-Type": "application/json", "x-goog-api-key": KEY}, timeout=300))
-            testo = r["candidates"][0]["content"]["parts"][0]["text"]
-            print("Modello usato:", modello)
-            return json.loads(testo)
-        except Exception as e:
-            ultimo = e
-            dettaglio = e.read().decode()[:300] if hasattr(e, "read") else ""
-            print("Modello", modello, "non disponibile:", str(e)[:200], dettaglio)
+    print("Modelli da provare:", candidati[:4])
+    inizio, ultimo = time.time(), None
+    for modello in candidati[:4]:
+        for cfg in configurazioni:
+            if time.time() - inizio > 480:
+                sys.exit(f"ERRORE Gemini: troppo tempo ({ultimo})")
+            try:
+                t0 = time.time()
+                a = chiama(modello, cfg)
+                print(f"Modello usato: {modello} ({int(time.time() - t0)} s)")
+                return a
+            except urllib.error.HTTPError as e:
+                ultimo = e
+                dettaglio = e.read().decode("utf-8", "ignore")[:300]
+                print("Modello", modello, "errore", e.code, dettaglio)
+                if e.code == 400:
+                    continue      # impostazione non supportata da questo modello: prova la successiva
+                break             # 404/429/500: passa al modello successivo
+            except Exception as e:
+                ultimo = e
+                print("Modello", modello, "non risponde:", str(e)[:200])
+                break
     sys.exit(f"ERRORE Gemini: {ultimo}")
 
 def salva(img, slug):
