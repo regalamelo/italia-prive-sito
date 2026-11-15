@@ -15,6 +15,8 @@ from foto import cerca_foto
 ARG = (os.environ.get("ARGOMENTO") or "").strip()
 if not ARG:
     sys.exit("ERRORE: manca l'argomento")
+if "{%" in ARG or "%}" in ARG:
+    sys.exit("ERRORE: argomento non valido (variabile Albato non sostituita): " + ARG)
 KEY = os.environ.get("GEMINI_API_KEY", "")
 GROQ = os.environ.get("GROQ_API_KEY", "")
 if not KEY and not GROQ:
@@ -22,6 +24,8 @@ if not KEY and not GROQ:
 LIMITE_GEMINI = 240 if GROQ else 720  # con Groq di riserva non si aspetta troppo Gemini
 CATEGORIE = [c.strip() for c in os.environ.get("CATEGORIE", "news").split(",") if c.strip()]
 CAT_RICHIESTA = (os.environ.get("CATEGORIA") or "").strip().lower()
+if CAT_RICHIESTA not in CATEGORIE:  # categoria vuota o non valida: la sceglie l'IA
+    CAT_RICHIESTA = ""
 SITO = os.environ.get("SITO_NOME", "il sito")
 TEMA = os.environ.get("SITO_TEMA", "")
 MODELLI = [m for m in [os.environ.get("GEMINI_MODEL"), "gemini-flash-latest"] if m]
