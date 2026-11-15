@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: "*/15 * * * *"   # controlla ogni 15 minuti
   workflow_dispatch:          # avvio manuale (pulsante "Run workflow")
-  repository_dispatch:        # avvio da n8n
+  repository_dispatch:        # avvio da Albato / n8n ("pubblica" o "nuovo-articolo")
   push:
     branches: [main]
     paths: ["extra/**", "articoli/**", "scripts/**", ".github/workflows/**"]
@@ -31,6 +31,12 @@ jobs:
         with:
           ref: main
 
+      - name: Salva articolo ricevuto (Albato / n8n)
+        if: github.event_name == 'repository_dispatch' && github.event.action == 'nuovo-articolo'
+        env:
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: python3 scripts/ricevi_articolo.py
+
       - name: Scarica l'export Brizy
         run: git clone --depth 1 "https://github.com/${BRIZY_REPO}.git" /tmp/brizy
 
@@ -44,7 +50,7 @@ jobs:
         run: |
           git config user.name "brizy-sync"
           git config user.email "brizy-sync@users.noreply.github.com"
-          git add -A site
+          git add -A site articoli
           if git diff --cached --quiet; then
             echo "Nessuna modifica"
           else
