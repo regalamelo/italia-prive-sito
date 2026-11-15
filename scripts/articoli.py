@@ -14,7 +14,10 @@ Primo paragrafo.
 
 Secondo paragrafo. Si può usare **grassetto**.
 """
-import datetime, html, json, os, re, sys
+import datetime, html, json, os, re, shutil, sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from foto import cerca_foto
 
 SITE, ARTICOLI = sys.argv[1], sys.argv[2]
 MODELLO = os.environ.get("MODELLO_ARTICOLO", "pizze.html")
@@ -117,6 +120,22 @@ for nome in sorted(os.listdir(ARTICOLI)):
     slug = nome[:-3]
     meta, paragrafi = leggi(os.path.join(ARTICOLI, nome))
     titolo = meta.get("titolo", slug.replace("-", " ").capitalize())
+
+    # articolo senza foto: la cerca una volta sola e la aggiunge al file
+    if not meta.get("immagine") and meta.get("foto_cercata") != "si":
+        percorso, credito = cerca_foto(meta.get("foto", ""), slug, meta.get("argomento") or titolo)
+        f_md = os.path.join(ARTICOLI, nome)
+        raw = open(f_md, encoding="utf-8").read()
+        extra_meta = (f"immagine: {percorso}\n" if percorso else "") + "foto_cercata: si\n"
+        raw = re.sub(r"^---\n", "---\n" + extra_meta, raw, count=1) if raw.startswith("---\n") else "---\n" + extra_meta + "---\n" + raw
+        if credito:
+            raw = raw.rstrip("\n") + "\n\n" + credito + "\n"
+            paragrafi.append(credito)
+        open(f_md, "w", encoding="utf-8").write(raw)
+        if percorso:
+            meta["immagine"] = percorso
+            os.makedirs(os.path.join(SITE, "img", "articoli"), exist_ok=True)
+            shutil.copy2("extra" + percorso, os.path.join(SITE, percorso.lstrip("/")))
     descr = meta.get("descrizione", re.sub(r"[#*]", "", paragrafi[0])[:155].strip() if paragrafi else titolo)
     h = modello
 
