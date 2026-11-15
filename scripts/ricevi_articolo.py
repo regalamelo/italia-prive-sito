@@ -22,10 +22,12 @@ if re.match(r"^\s*cambia[\s_-]*foto", titolo, re.I) or re.search(r"(?im)^\W*azio
     def _campo(nome):
         m = re.search(rf"(?im)^\W*{nome}\W*:\s*(.+?)\s*$", _testo_semplice)
         return m.group(1).strip(" *") if m else ""
+    una_riga = lambda v: " ".join(str(v or "").split())
     articolo = _campo("articolo") or re.sub(r"(?i)^\s*cambia[\s_-]*foto\s*[-:–]?\s*", "", titolo)
     if articolo.lower() in ("ultimo", "l'ultimo", "ultimo articolo"):
         articolo = ""
-    foto_richiesta = _campo("foto") or _campo("link")
+    # lo script Apps Script toglie la riga "Foto:" dal testo se e' la prima: allora arriva in parole_chiave_foto / immagine
+    foto_richiesta = _campo("foto") or _campo("link") or una_riga(d.get("immagine")) or una_riga(d.get("parole_chiave_foto"))
     print("Richiesta CAMBIA FOTO dal Gem -> articolo:", articolo or "(ultimo)", "| foto:", foto_richiesta)
     import subprocess
     env = dict(os.environ, ARTICOLO=articolo, FOTO=foto_richiesta)
