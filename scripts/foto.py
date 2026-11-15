@@ -63,13 +63,22 @@ def _commons(q, slug):
             continue
     return None
 
+VUOTE = set("dell nell sull dall all alla allo alle agli dalla dalle dello della delle degli nella nelle negli sulla sulle come cosa sono anche dove quando perche quale quali questo questa tutto tutti tutte molto ogni oltre senza verso tra fra per con dei del gli una uno the and for with from your guida provare scoprire migliori migliore inverno estate primavera autunno 2025 2026 2027".split())
+
+def _parole(t):
+    return [w for w in re.findall(r"[A-Za-zÀ-ÿ]+", t or "") if len(w) > 3 and w.lower() not in VUOTE]
+
 def cerca_foto(parole, slug, riserva=""):
     parole = " ".join(str(parole or "").split())
+    sig = _parole(riserva)
+    nomi_propri = [w for w in sig if w[0].isupper()][1:] or [w for w in sig if w[0].isupper()]
     tentativi = []
-    for q in (parole, " ".join(parole.split()[:2]), riserva):
+    for q in (parole, " ".join(parole.split()[:2]), " ".join(nomi_propri[:2]),
+              " ".join(sig[:2]), nomi_propri[0] if nomi_propri else "", riserva):
         q = " ".join(str(q or "").split())
         if q and q not in tentativi:
             tentativi.append(q)
+    print("Ricerche foto:", tentativi)
     for fonte in (_pexels, _openverse, _commons):
         for q in tentativi:
             try:
