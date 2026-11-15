@@ -2,7 +2,7 @@
 titolo: Come scegliere un ristorante d'eccellenza: guida raffinata all'alta cucina italiana
 descrizione: Scopri i criteri fondamentali per scegliere un ristorante d'eccellenza in Italia, tra filosofia culinaria, cantina e servizio impeccabile.
 categoria: eccellenze
-immagine: /img/articoli/come-scegliere-un-ristorante-d-eccellenza-guida-raffinata-all-alta-cucina-italia.jpg
+immagine: https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1600&q=80
 data: 2026-11-15
 ---
 Scegliere un ristorante d'eccellenza in Italia significa valutare l'armonia tra la **filosofia dello chef**, la valorizzazione rigorosa delle **materie prime territoriali** e la coerenza della proposta enologica. Per orientarsi nel panorama dell'alta cucina italiana, è essenziale considerare non solo il blasone delle guide gastronomiche, ma la capacità del locale di offrire un'esperienza sensoriale autentica e memorabile.
@@ -65,4 +65,4 @@ Nei ristoranti più acclamati e insigniti di riconoscimenti internazionali, le p
 
 Molti ristoranti di alta cucina richiedono un abbigliamento elegante o formale, pur avendo ammorbidito i codici rigidi del passato in favore di un'eleganza rilassata. È buona norma verificare sempre sul sito ufficiale del locale o contattare direttamente la sala per evitare imbarazzi.
 
-Foto: Valle San Giovanni di stefanaccio, licenza CC BY-SA 2.0
+Foto: Jay Wennington / Unsplash
