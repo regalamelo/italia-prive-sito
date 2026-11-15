@@ -14,7 +14,7 @@ Primo paragrafo.
 
 Secondo paragrafo. Si può usare **grassetto**.
 """
-import datetime, html, os, re, sys
+import datetime, html, json, os, re, sys
 
 SITE, ARTICOLI = sys.argv[1], sys.argv[2]
 MODELLO = os.environ.get("MODELLO_ARTICOLO", "pizze.html")
@@ -30,8 +30,75 @@ def leggi(path):
                 k, v = riga.split(":", 1)
                 meta[k.strip().lower()] = v.strip()
         corpo = m.group(2)
-    paragrafi = [p.strip().replace("\n", " ") for p in re.split(r"\n\s*\n", corpo) if p.strip()]
-    return meta, paragrafi
+    blocchi_testo = []
+    for b in re.split(r"\n\s*\n", corpo):
+        righe = [r.strip() for r in b.strip().split("\n") if r.strip()]
+        # titoli e voci di elenco su righe separate diventano blocchi separati
+        corrente = []
+        for r in righe:
+            if r.startswith(("#", "- ", "* ")):
+                if corrente:
+                    blocchi_testo.append(" ".join(corrente)); corrente = []
+                blocchi_testo.append(r)
+            else:
+                corrente.append(r)
+        if corrente:
+            blocchi_testo.append(" ".join(corrente))
+    return meta, blocchi_testo
+
+SITO_NOME = os.environ.get("SITO_NOME", "")
+
+def corpo_html(blocchi_testo, tag_p):
+    """Markdown semplice -> HTML con lo stile dei paragrafi Brizy (## sottotitolo, ### domanda, - elenco)."""
+    cls = re.search(r'class="([^"]*)"', tag_p)
+    cls = cls.group(1) if cls else ""
+    out, elenco = [], []
+    def chiudi():
+        if elenco:
+            out.append('<ul style="padding-left:1.3em;margin:0 0 1em;list-style:disc">' + "".join(
+                f'<li class="{cls}" style="margin-bottom:.3em"><span class="brz-cp-color7">{testo(x)}</span></li>' for x in elenco) + "</ul>")
+            elenco.clear()
+    for b in blocchi_testo:
+        if b.startswith(("- ", "* ")):
+            elenco.append(b[2:].strip()); continue
+        chiudi()
+        if b.startswith("### "):
+            out.append(f'<h3 class="{cls}" style="font-size:1.12em;font-weight:600;margin:1.2em 0 .3em"><span class="brz-cp-color7">{testo(b[4:])}</span></h3>')
+        elif b.startswith("## ") or b.startswith("# "):
+            out.append(f'<h2 class="{cls}" style="font-size:1.35em;font-weight:600;margin:1.6em 0 .4em"><span class="brz-cp-color7">{testo(b.lstrip("#").strip())}</span></h2>')
+        else:
+            out.append(f'{tag_p}<span class="brz-cp-color7">{testo(b)}</span></p>')
+    chiudi()
+    return "".join(out)
+
+def faq_da(blocchi_testo):
+    faq, dentro, dom, risp = [], False, None, []
+    for b in blocchi_testo + ["## fine"]:
+        if b.startswith("## ") or b.startswith("# "):
+            if dom and risp: faq.append((dom, " ".join(risp)))
+            dom, risp = None, []
+            dentro = bool(re.search(r"domande|faq", b, re.I))
+        elif dentro and b.startswith("### "):
+            if dom and risp: faq.append((dom, " ".join(risp)))
+            dom, risp = b[4:].strip(), []
+        elif dentro and dom:
+            risp.append(re.sub(r"\*\*(.+?)\*\*", r"\1", b.lstrip("-* ")))
+    return faq
+
+def schema_ld(titolo, descr, slug, data, immagine, faq):
+    base = DOMINIO.rstrip("/")
+    img = immagine if immagine.startswith("http") else (base + immagine if immagine else "")
+    art = {"@context": "https://schema.org", "@type": "Article", "headline": titolo, "description": descr,
+           "datePublished": data, "dateModified": data, "inLanguage": "it-IT",
+           "mainEntityOfPage": f"{base}/{slug}",
+           "author": {"@type": "Organization", "name": SITO_NOME or base},
+           "publisher": {"@type": "Organization", "name": SITO_NOME or base, "url": base}}
+    if img: art["image"] = img
+    blocchi_ld = [art]
+    if faq:
+        blocchi_ld.append({"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [
+            {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": r}} for q, r in faq]})
+    return "".join('<script type="application/ld+json">' + json.dumps(b, ensure_ascii=False).replace("</", "<\\/") + "</script>" for b in blocchi_ld)
 
 def testo(t):
     t = html.escape(t, quote=False)
@@ -50,11 +117,11 @@ for nome in sorted(os.listdir(ARTICOLI)):
     slug = nome[:-3]
     meta, paragrafi = leggi(os.path.join(ARTICOLI, nome))
     titolo = meta.get("titolo", slug.replace("-", " ").capitalize())
-    descr = meta.get("descrizione", paragrafi[0][:155] if paragrafi else titolo)
+    descr = meta.get("descrizione", re.sub(r"[#*]", "", paragrafi[0])[:155].strip() if paragrafi else titolo)
     h = modello
 
     # <head>: titolo, descrizione, indirizzi
-    h = re.sub(r"<title>.*?</title>", f"<title>{html.escape(titolo)} | ITALIA PRIVÈ</title>", h, count=1, flags=re.S)
+    h = re.sub(r"<title>.*?</title>", f"<title>{html.escape(titolo)}{(' | ' + html.escape(SITO_NOME)) if SITO_NOME else ''}</title>", h, count=1, flags=re.S)
     h = re.sub(r'(<meta (?:property="og:title"|name="twitter:title") content=")[^"]*', lambda m: m.group(1) + html.escape(titolo), h)
     h = re.sub(r'(<meta (?:name="description"|property="og:description"|name="twitter:description") content=")[^"]*', lambda m: m.group(1) + html.escape(descr), h)
     h = h.replace(f"/{slug_modello}\"", f"/{slug}\"")
@@ -79,8 +146,9 @@ for nome in sorted(os.listdir(ARTICOLI)):
     p_aperto = h.find("<p ", blocco)
     tag_p = h[p_aperto:h.find(">", p_aperto) + 1]
     fine = h.find("</div>", p_aperto)
-    nuovo = "".join(f'{tag_p}<span class="brz-cp-color7">{testo(p)}</span></p>' for p in paragrafi)
-    h = h[:p_aperto] + nuovo + h[fine:]
+    h = h[:p_aperto] + corpo_html(paragrafi, tag_p) + h[fine:]
+    data_art = meta.get("data") or datetime.date.today().isoformat()
+    h = h.replace("</head>", schema_ld(titolo, descr, slug, data_art, meta.get("immagine", ""), faq_da(paragrafi)) + "</head>", 1)
 
     open(os.path.join(SITE, slug + ".html"), "w", encoding="utf-8").write(h)
     nuovi.append((slug, meta.get("data") or datetime.date.today().isoformat()))
