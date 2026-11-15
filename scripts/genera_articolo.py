@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scrive un articolo in ottica GEO con Gemini (piano gratuito) e cerca una foto su Pexels.
+"""Scrive un articolo in ottica GEO con Gemini (piano gratuito) e cerca una foto (Pexels se c'è la chiave, altrimenti Openverse: licenze libere, senza chiave).
 
 Uso: ARGOMENTO="..." [CATEGORIA="news"] python3 scripts/genera_articolo.py
 Segreti: GEMINI_API_KEY (obbligatorio), PEXELS_API_KEY (facoltativo, per la foto)
@@ -71,25 +71,51 @@ def gemini():
             print("Modello", modello, "non disponibile:", getattr(e, "code", ""), str(e)[:200])
     sys.exit(f"ERRORE Gemini: {ultimo}")
 
-def foto(parole, slug):
+def salva(img, slug):
+    os.makedirs("extra/img/articoli", exist_ok=True)
+    open(f"extra/img/articoli/{slug}.jpg", "wb").write(img)
+    return f"/img/articoli/{slug}.jpg"
+
+def foto_pexels(parole, slug):
     pk = os.environ.get("PEXELS_API_KEY")
     if not pk:
-        return ""
-    try:
-        q = urllib.parse.quote(parole)
-        r = json.loads(http(f"https://api.pexels.com/v1/search?query={q}&per_page=5&orientation=landscape",
-                            headers={"Authorization": pk, "User-Agent": "Mozilla/5.0"}))
-        if not r.get("photos"):
-            return ""
-        src = r["photos"][0]["src"]["large2x"]
-        img = http(src, headers={"User-Agent": "Mozilla/5.0"})
-        os.makedirs("extra/img/articoli", exist_ok=True)
-        open(f"extra/img/articoli/{slug}.jpg", "wb").write(img)
-        print("Foto:", r["photos"][0].get("url"))
-        return f"/img/articoli/{slug}.jpg"
-    except Exception as e:
-        print("Foto non trovata:", e)
-        return ""
+        return "", ""
+    q = urllib.parse.quote(parole)
+    r = json.loads(http(f"https://api.pexels.com/v1/search?query={q}&per_page=5&orientation=landscape",
+                        headers={"Authorization": pk, "User-Agent": "Mozilla/5.0"}))
+    if not r.get("photos"):
+        return "", ""
+    f = r["photos"][0]
+    return salva(http(f["src"]["large2x"], headers={"User-Agent": "Mozilla/5.0"}), slug), ""
+
+def foto_openverse(parole, slug):
+    """Foto con licenza libera per uso commerciale (nessuna chiave richiesta). Restituisce anche il credito."""
+    q = urllib.parse.quote(parole)
+    url = f"https://api.openverse.org/v1/images/?q={q}&license_type=commercial&aspect_ratio=wide&size=large&page_size=10"
+    r = json.loads(http(url, headers={"User-Agent": "Mozilla/5.0 (sito-articoli)"}))
+    for f in r.get("results", []):
+        try:
+            img = http(f["url"], headers={"User-Agent": "Mozilla/5.0 (sito-articoli)"}, timeout=60)
+            if len(img) < 20000:
+                continue
+            lic = (f.get("license") or "").upper()
+            ver = f.get("license_version") or ""
+            credito = f"Foto: {f.get('title') or 'immagine'} di {f.get('creator') or 'autore sconosciuto'}, licenza {lic if lic in ('CC0', 'PDM') else 'CC ' + lic} {ver}".strip()
+            print("Foto:", f.get("foreign_landing_url"))
+            return salva(img, slug), credito
+        except Exception:
+            continue
+    return "", ""
+
+def foto(parole, slug):
+    for fn in (foto_pexels, foto_openverse):
+        try:
+            percorso, credito = fn(parole, slug)
+            if percorso:
+                return percorso, credito
+        except Exception as e:
+            print("Foto non trovata con", fn.__name__, ":", e)
+    return "", ""
 
 a = gemini()
 titolo = " ".join(a["titolo"].split())
@@ -97,8 +123,10 @@ slug = slugify(os.environ.get("SLUG") or titolo)
 categoria = a.get("categoria", "").lower()
 if CAT_RICHIESTA in CATEGORIE:
     categoria = CAT_RICHIESTA
-immagine = foto(a.get("parole_chiave_foto", ARG), slug)
+immagine, credito = foto(a.get("parole_chiave_foto", ARG), slug)
 testo = re.sub(r"^#\s+.*\n", "", a["testo"].strip()).strip()  # niente titolo H1 duplicato
+if credito:
+    testo += "\n\n" + credito
 
 meta = {"titolo": titolo, "descrizione": " ".join(a["descrizione"].split())[:200],
         "categoria": categoria, "immagine": immagine, "data": OGGI, "argomento": " ".join(ARG.split())}
