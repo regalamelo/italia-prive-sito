@@ -19,6 +19,9 @@ concurrency:
 env:
   BRIZY_REPO: regalamelo/brizy-project-23428941
   BRIZY_LIVE_URL: https://orca7fd00f5e.brizy.site/
+  DOMINIO: https://italiaprive.it
+  MODELLO_ARTICOLO: pizze.html
+  CATEGORIE: news,tendenze,storie,eccellenze
 
 jobs:
   sync:
