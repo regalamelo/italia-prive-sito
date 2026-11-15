@@ -29,7 +29,8 @@ if CAT_RICHIESTA not in CATEGORIE:  # categoria vuota o non valida: la sceglie l
 SITO = os.environ.get("SITO_NOME", "il sito")
 TEMA = os.environ.get("SITO_TEMA", "")
 MODELLI = [m for m in [os.environ.get("GEMINI_MODEL"), "gemini-flash-latest"] if m]
-OGGI = datetime.date.today().isoformat()
+from zoneinfo import ZoneInfo
+OGGI = datetime.datetime.now(ZoneInfo("Europe/Rome")).isoformat(timespec="seconds")  # data + ora: il più recente va in cima
 
 def http(url, data=None, headers=None, timeout=120):
     req = urllib.request.Request(url, data=data, headers=headers or {})

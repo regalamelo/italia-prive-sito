@@ -52,13 +52,14 @@ while _par:
 testo = "\n\n".join(_par)
 
 slug = slugify(d.get("slug") or titolo)
-data = una_riga(d.get("data")) or datetime.date.today().isoformat()
+from zoneinfo import ZoneInfo
+data = una_riga(d.get("data")) or datetime.datetime.now(ZoneInfo("Europe/Rome")).isoformat(timespec="seconds")
 meta = {
     "titolo": una_riga(titolo),
     "descrizione": una_riga(d.get("descrizione")),
     "categoria": una_riga(d.get("categoria")).lower(),
     "immagine": una_riga(d.get("immagine")),
-    "data": data[:10],
+    "data": data,
 }
 corpo = pulisci(testo)
 if not meta["immagine"]:
