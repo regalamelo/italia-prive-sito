@@ -86,8 +86,42 @@ def parole_inglesi(testo):
             print("Gemini non disponibile:", str(e)[:150])
     return testo
 
-parole = " ".join(re.findall(r"[A-Za-z]+", parole_inglesi(base)))[:80] or base
-print("Parole chiave foto:", parole)
+# ---------- foto indicata con un link Unsplash preciso ----------
+LINK = re.search(r"https?://(?:www\.)?unsplash\.com/(?:[a-z]{2}/)?(?:photos|foto)/[^\s\"']+|https?://images\.unsplash\.com/photo-[^\s\"']+", RICHIESTA)
+
+def foto_da_link(link):
+    """Verifica il link Unsplash: la foto deve esistere ed essere gratuita (non Unsplash+). Restituisce (url, credito)."""
+    if "images.unsplash.com" in link:
+        base_img = link.split("?")[0]
+        if not re.fullmatch(r"https://images\.unsplash\.com/photo-[0-9a-f]+-[0-9a-f]+", base_img):
+            sys.exit("ERRORE: link immagine Unsplash non valido: " + link)
+        http(base_img + "?w=50", headers=foto.UA, timeout=30)  # deve rispondere (404 = foto inesistente)
+        return base_img + "?w=1600&q=80&fm=jpg&fit=max", "Foto: Unsplash"
+    pid = re.sub(r"[/?#].*$", "", link.rstrip("/").split("/")[-1]).split("-")[-1]
+    if not re.fullmatch(r"[A-Za-z0-9_]{11}", pid):
+        sys.exit("ERRORE: link Unsplash non valido (manca l'ID della foto): " + link)
+    key = os.environ.get("UNSPLASH_ACCESS_KEY")
+    if not key:
+        sys.exit("ERRORE: per usare un link Unsplash serve il segreto UNSPLASH_ACCESS_KEY")
+    h = {"Authorization": f"Client-ID {key}", "Accept-Version": "v1", **foto.UA}
+    try:
+        f = json.loads(http(f"https://api.unsplash.com/photos/{pid}", headers=h))
+    except Exception as e:
+        sys.exit(f"ERRORE: la foto Unsplash {pid} non esiste o non è raggiungibile ({str(e)[:80]})")
+    if f.get("premium") or f.get("plus"):
+        sys.exit("ERRORE: la foto è Unsplash+ (a pagamento), scegline una gratuita: " + link)
+    try:
+        http(f["links"]["download_location"], headers=h, timeout=20)  # conteggio download richiesto da Unsplash
+    except Exception:
+        pass
+    return f["urls"]["raw"] + "&w=1600&q=80&fm=jpg&fit=max", f"Foto: {f.get('user', {}).get('name', 'Unsplash')} / Unsplash"
+
+if LINK:
+    print("Link foto indicato:", LINK.group(0))
+    parole = ""
+else:
+    parole = " ".join(re.findall(r"[A-Za-z]+", parole_inglesi(base)))[:80] or base
+    print("Parole chiave foto:", parole)
 
 # ---------- cerca una foto DIVERSA da quella attuale ----------
 attuale = meta.get("immagine", "")
@@ -111,15 +145,15 @@ def unsplash_diversa(q):
     return None
 
 slug = nome[:-3]
-ris = None
-for q in (parole, " ".join(parole.split()[:2])):
+ris = foto_da_link(LINK.group(0)) if LINK else None
+for q in (() if LINK else (parole, " ".join(parole.split()[:2]))):
     try:
         ris = unsplash_diversa(q)
     except Exception as e:
         print("Errore Unsplash:", str(e)[:150])
     if ris:
         break
-if not ris:
+if not ris and not LINK:
     url, credito = foto.cerca_foto(parole, slug, base)
     ris = (url, credito) if url and url != attuale else None
 if not ris:
