@@ -62,19 +62,20 @@ def modelli_disponibili():
                             headers={"x-goog-api-key": KEY}, timeout=30))
         nomi = [m["name"].split("/", 1)[1] for m in r.get("models", [])
                 if "generateContent" in m.get("supportedGenerationMethods", [])]
-        flash = [n for n in nomi if "flash" in n and not re.search(r"image|tts|audio|live|lite|exp|preview|thinking", n)]
-        return sorted(flash, reverse=True)
+        flash = [n for n in nomi if "flash" in n and not re.search(r"image|tts|audio|live|exp|preview|thinking|omni", n)]
+        # prima i Flash normali (dal piu' recente), poi i "lite" (piu' veloci e spesso piu' disponibili)
+        return sorted(flash, key=lambda n: ("lite" in n, [-int(x) for x in re.findall(r"\d+", n)]))
     except Exception as e:
         print("Elenco modelli non disponibile:", e)
         return []
 
 def chiama(modello, gen_cfg):
-    """Risposta in streaming: se Gemini resta muto per 90 secondi si passa oltre (niente attese infinite)."""
+    """Risposta in streaming: se Gemini resta muto per 150 secondi si passa oltre (niente attese infinite)."""
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{modello}:streamGenerateContent?alt=sse"
     body = json.dumps({"contents": [{"role": "user", "parts": [{"text": PROMPT}]}], "generationConfig": gen_cfg}).encode()
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json", "x-goog-api-key": KEY})
     parti = []
-    with urllib.request.urlopen(req, timeout=90) as r:
+    with urllib.request.urlopen(req, timeout=150) as r:
         for riga in r:
             riga = riga.decode("utf-8", "ignore").strip()
             if not riga.startswith("data:"):
@@ -95,11 +96,11 @@ def gemini():
     for m in MODELLI + modelli_disponibili():
         if m not in candidati:
             candidati.append(m)
-    print("Modelli da provare:", candidati[:4])
+    print("Modelli da provare:", candidati[:6])
     inizio, ultimo = time.time(), None
-    for modello in candidati[:4]:
+    for modello in candidati[:6]:
         for cfg in configurazioni:
-            if time.time() - inizio > 480:
+            if time.time() - inizio > 720:
                 sys.exit(f"ERRORE Gemini: troppo tempo ({ultimo})")
             try:
                 t0 = time.time()
@@ -112,7 +113,10 @@ def gemini():
                 print("Modello", modello, "errore", e.code, dettaglio)
                 if e.code == 400:
                     continue      # impostazione non supportata da questo modello: prova la successiva
-                break             # 404/429/500: passa al modello successivo
+                if e.code in (500, 503):
+                    time.sleep(20)  # server sovraccarico: riprova lo stesso modello
+                    continue
+                break             # 404/429: passa al modello successivo
             except Exception as e:
                 ultimo = e
                 print("Modello", modello, "non risponde:", str(e)[:200])
