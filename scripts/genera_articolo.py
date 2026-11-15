@@ -16,7 +16,7 @@ CATEGORIE = [c.strip() for c in os.environ.get("CATEGORIE", "news").split(",") i
 CAT_RICHIESTA = (os.environ.get("CATEGORIA") or "").strip().lower()
 SITO = os.environ.get("SITO_NOME", "il sito")
 TEMA = os.environ.get("SITO_TEMA", "")
-MODELLI = [m for m in [os.environ.get("GEMINI_MODEL"), "gemini-flash-latest", "gemini-2.5-flash"] if m]
+MODELLI = [m for m in [os.environ.get("GEMINI_MODEL"), "gemini-flash-latest"] if m]
 OGGI = datetime.date.today().isoformat()
 
 def http(url, data=None, headers=None, timeout=120):
@@ -53,22 +53,40 @@ SCHEMA = {
     "required": ["titolo", "descrizione", "categoria", "parole_chiave_foto", "testo"],
 }
 
+def modelli_disponibili():
+    """Elenco dei modelli Flash attivi per questa chiave (i nomi cambiano nel tempo)."""
+    try:
+        r = json.loads(http("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",
+                            headers={"x-goog-api-key": KEY}, timeout=30))
+        nomi = [m["name"].split("/", 1)[1] for m in r.get("models", [])
+                if "generateContent" in m.get("supportedGenerationMethods", [])]
+        flash = [n for n in nomi if "flash" in n and not re.search(r"image|tts|audio|live|lite|exp|preview|thinking", n)]
+        return sorted(flash, reverse=True)
+    except Exception as e:
+        print("Elenco modelli non disponibile:", e)
+        return []
+
 def gemini():
     body = json.dumps({
         "contents": [{"role": "user", "parts": [{"text": PROMPT}]}],
         "generationConfig": {"responseMimeType": "application/json", "responseSchema": SCHEMA, "temperature": 0.8},
     }).encode()
+    candidati = []
+    for m in MODELLI + modelli_disponibili():
+        if m not in candidati:
+            candidati.append(m)
     ultimo = None
-    for modello in MODELLI:
+    for modello in candidati[:6]:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{modello}:generateContent"
         try:
-            r = json.loads(http(url, body, {"Content-Type": "application/json", "x-goog-api-key": KEY}))
+            r = json.loads(http(url, body, {"Content-Type": "application/json", "x-goog-api-key": KEY}, timeout=300))
             testo = r["candidates"][0]["content"]["parts"][0]["text"]
             print("Modello usato:", modello)
             return json.loads(testo)
         except Exception as e:
             ultimo = e
-            print("Modello", modello, "non disponibile:", getattr(e, "code", ""), str(e)[:200])
+            dettaglio = e.read().decode()[:300] if hasattr(e, "read") else ""
+            print("Modello", modello, "non disponibile:", str(e)[:200], dettaglio)
     sys.exit(f"ERRORE Gemini: {ultimo}")
 
 def salva(img, slug):
