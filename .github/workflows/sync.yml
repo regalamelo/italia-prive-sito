@@ -33,6 +33,8 @@ env:
   SITO_TEMA: "magazine online per chi ama vivere l'Italia in modo privilegiato: viaggi iconici, lifestyle ricercato, food, moda, eccellenze italiane. Tono elegante e informato."
   # altri archivi -sito a cui girare lo stesso argomento (separati da virgola), es. regalamelo/altrosito-sito
   ALTRI_SITI: ""
+  # foto professionali per gli articoli (se manca si usano archivi liberi)
+  UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
 
 jobs:
   sync:
