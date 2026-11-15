@@ -1,5 +1,7 @@
 ---
-titolo: Come scegliere un ristorante d'eccellenza: guida raffinata all'alta cucina italiana Descrizione: Scopri i criteri fondamentali per scegliere un ristorante d'eccellenza in Italia, tra filosofia culinaria, cantina e servizio impeccabile. Categoria: eccellenze Foto: fine dining restaurant Italy luxury table
+titolo: Come scegliere un ristorante d'eccellenza: guida raffinata all'alta cucina italiana
+descrizione: Scopri i criteri fondamentali per scegliere un ristorante d'eccellenza in Italia, tra filosofia culinaria, cantina e servizio impeccabile.
+categoria: eccellenze
 immagine: /img/articoli/come-scegliere-un-ristorante-d-eccellenza-guida-raffinata-all-alta-cucina-italia.jpg
 data: 2026-11-15
 ---
