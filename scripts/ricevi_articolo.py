@@ -14,6 +14,23 @@ from foto import cerca_foto
 d = json.loads(os.environ.get("PAYLOAD") or "{}")
 titolo = (d.get("titolo") or "").strip()
 testo = (d.get("testo") or "").strip()
+
+# Documento "CAMBIA FOTO" esportato dal Gem: non e' un articolo, cambia la foto di uno esistente.
+#   Titolo del doc: CAMBIA FOTO - <articolo>     Testo: righe "Articolo: ..." e "Foto: <link Unsplash>"
+_testo_semplice = re.sub(r"<[^>]+>", "\n", html.unescape(testo))
+if re.match(r"^\s*cambia[\s_-]*foto", titolo, re.I) or re.search(r"(?im)^\W*azione\W*:\W*cambia[\s_-]*foto", _testo_semplice):
+    def _campo(nome):
+        m = re.search(rf"(?im)^\W*{nome}\W*:\s*(.+?)\s*$", _testo_semplice)
+        return m.group(1).strip(" *") if m else ""
+    articolo = _campo("articolo") or re.sub(r"(?i)^\s*cambia[\s_-]*foto\s*[-:–]?\s*", "", titolo)
+    if articolo.lower() in ("ultimo", "l'ultimo", "ultimo articolo"):
+        articolo = ""
+    foto_richiesta = _campo("foto") or _campo("link")
+    print("Richiesta CAMBIA FOTO dal Gem -> articolo:", articolo or "(ultimo)", "| foto:", foto_richiesta)
+    import subprocess
+    env = dict(os.environ, ARTICOLO=articolo, FOTO=foto_richiesta)
+    sys.exit(subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "cambia_foto.py")], env=env).returncode)
+
 if not titolo or not testo:
     sys.exit("ERRORE: servono almeno 'titolo' e 'testo'")
 
