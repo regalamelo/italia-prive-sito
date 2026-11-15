@@ -135,7 +135,8 @@ for nome in sorted(os.listdir(ARTICOLI)):
         if percorso:
             meta["immagine"] = percorso
             os.makedirs(os.path.join(SITE, "img", "articoli"), exist_ok=True)
-            shutil.copy2("extra" + percorso, os.path.join(SITE, percorso.lstrip("/")))
+            if percorso.startswith("/"):  # foto salvata nel sito (non link Unsplash)
+                shutil.copy2("extra" + percorso, os.path.join(SITE, percorso.lstrip("/")))
     descr = meta.get("descrizione", re.sub(r"[#*]", "", paragrafi[0])[:155].strip() if paragrafi else titolo)
     h = modello
 
