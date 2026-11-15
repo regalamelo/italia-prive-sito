@@ -6,7 +6,10 @@ Dati attesi in client_payload:
   parole_chiave_foto (in inglese: se manca l'immagine si cerca una foto libera su Openverse)
 Il testo puo' essere semplice (paragrafi separati da a capo) o HTML (<p>...</p>).
 """
-import datetime, html, json, os, re, sys, unicodedata, urllib.parse, urllib.request
+import datetime, html, json, os, re, sys, unicodedata
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from foto import cerca_foto
 
 d = json.loads(os.environ.get("PAYLOAD") or "{}")
 titolo = (d.get("titolo") or "").strip()
@@ -32,33 +35,6 @@ def pulisci(t):
 def una_riga(v):
     return " ".join(str(v or "").split())
 
-def foto_openverse(parole, slug):
-    """Se manca l'immagine: foto con licenza libera per uso commerciale (Openverse, senza chiave)."""
-    ua = {"User-Agent": "Mozilla/5.0 (sito-articoli)"}
-    q = urllib.parse.quote(parole)
-    url = f"https://api.openverse.org/v1/images/?q={q}&license_type=commercial&aspect_ratio=wide&size=large&page_size=10"
-    try:
-        with urllib.request.urlopen(urllib.request.Request(url, headers=ua), timeout=60) as r:
-            risultati = json.loads(r.read()).get("results", [])
-    except Exception as e:
-        print("Ricerca foto non riuscita:", e)
-        return "", ""
-    for f in risultati:
-        try:
-            with urllib.request.urlopen(urllib.request.Request(f["url"], headers=ua), timeout=60) as r:
-                img = r.read()
-            if len(img) < 20000:
-                continue
-            os.makedirs("extra/img/articoli", exist_ok=True)
-            open(f"extra/img/articoli/{slug}.jpg", "wb").write(img)
-            lic = (f.get("license") or "").upper()
-            credito = f"Foto: {f.get('title') or 'immagine'} di {f.get('creator') or 'autore sconosciuto'}, licenza {lic if lic in ('CC0', 'PDM') else 'CC ' + lic} {f.get('license_version') or ''}".strip()
-            print("Foto:", f.get("foreign_landing_url"))
-            return f"/img/articoli/{slug}.jpg", credito
-        except Exception:
-            continue
-    return "", ""
-
 slug = slugify(d.get("slug") or titolo)
 data = una_riga(d.get("data")) or datetime.date.today().isoformat()
 meta = {
@@ -70,7 +46,7 @@ meta = {
 }
 corpo = pulisci(testo)
 if not meta["immagine"]:
-    meta["immagine"], credito = foto_openverse(una_riga(d.get("parole_chiave_foto")) or titolo, slug)
+    meta["immagine"], credito = cerca_foto(una_riga(d.get("parole_chiave_foto")), slug, titolo)
     if credito:
         corpo += "\n\n" + credito
 righe = ["---"] + [f"{k}: {v}" for k, v in meta.items() if v] + ["---", corpo, ""]
