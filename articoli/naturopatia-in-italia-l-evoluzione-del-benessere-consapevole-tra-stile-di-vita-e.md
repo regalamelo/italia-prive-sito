@@ -1,4 +1,6 @@
 ---
+immagine: https://images.unsplash.com/photo-1787287247603-6cba84e7ccd7?ixid=M3wxMTM0MDMwfDB8MXxzZWFyY2h8Mnx8bmF0dXJhbCUyMHdlbGxuZXNzJTIwaGVyYnMlMjBlc3NlbnRpYWwlMjBvaWxzfGVufDF8MHx8fDE3OTQ3MjMyMTV8MA&ixlib=rb-4.1.0&w=1600&q=80&fm=jpg&fit=max
+foto_cercata: si
 titolo: Naturopatia in Italia: l'evoluzione del benessere consapevole tra stile di vita e tradizione
 descrizione: Scopri la naturopatia in Italia: principi, evoluzione e quadro normativo per un approccio consapevole al benessere e alla prevenzione primaria.
 categoria: tendenze
@@ -50,3 +52,5 @@ Gli operatori si avvalgono di colloqui sullo stile di vita, consigli alimentari 
 ### I rimedi naturali possono avere controindicazioni?
 
 Sì, anche i prodotti di origine vegetale possono interagire con i farmaci o causare reazioni individuali; per questo è fondamentale affidarsi a esperti competenti e informare sempre il proprio medico.
+
+Foto: Tho Nguyen Huu / Unsplash
