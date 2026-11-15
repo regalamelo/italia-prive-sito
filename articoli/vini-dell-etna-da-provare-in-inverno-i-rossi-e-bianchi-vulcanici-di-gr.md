@@ -1,4 +1,6 @@
 ---
+immagine: https://images.unsplash.com/photo-1641051395370-171834e9b7cb?ixid=M3wxMTM0MDMwfDB8MXxzZWFyY2h8MXx8RXRuYXxlbnwxfDB8fHwxNzk0NzEyNDg3fDA&ixlib=rb-4.1.0&w=1600&q=80&fm=jpg&fit=max
+foto_cercata: si
 titolo: Vini dell'Etna da provare in inverno: i rossi e bianchi vulcanici di grande struttura
 descrizione: Scopri i migliori vini dell'Etna da degustare in inverno: Nerello Mascalese e Carricante di grande struttura, perfetti per la stagione fredda.
 categoria: eccellenze
@@ -49,4 +51,4 @@ Le Contrade sono le sottozone ufficialmente riconosciute sul vulcano, corrispond
 ### L'Etna Bianco può invecchiare bene come un grande rosso?
 Sì, le versioni a base di Carricante, in particolare l'Etna Bianco Superiore di Milo, possiedono un'acidità e una mineralità tali da permettere un'evoluzione in bottiglia anche superiore ai 10 anni.
 
-
+Foto: Samir Kharrat / Unsplash
