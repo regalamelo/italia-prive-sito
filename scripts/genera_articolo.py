@@ -2,7 +2,7 @@
 """Scrive un articolo in ottica GEO con Gemini (piano gratuito) e cerca una foto (Pexels se c'è la chiave, altrimenti Openverse: licenze libere, senza chiave).
 
 Uso: ARGOMENTO="..." [CATEGORIA="news"] python3 scripts/genera_articolo.py
-Segreti: GEMINI_API_KEY (obbligatorio), PEXELS_API_KEY (facoltativo, per la foto)
+Segreti: GEMINI_API_KEY e/o GROQ_API_KEY (piano B, veloce), PEXELS_API_KEY (facoltativo, per la foto)
 Variabili del sito: SITO_NOME, SITO_TEMA, CATEGORIE, GEMINI_MODEL (facoltativa)
 Risultato: articoli/<slug>.md (+ extra/img/articoli/<slug>.jpg)
 """
@@ -13,7 +13,11 @@ sys.stdout.reconfigure(line_buffering=True)  # log visibili subito su GitHub
 ARG = (os.environ.get("ARGOMENTO") or "").strip()
 if not ARG:
     sys.exit("ERRORE: manca l'argomento")
-KEY = os.environ.get("GEMINI_API_KEY") or sys.exit("ERRORE: manca il segreto GEMINI_API_KEY")
+KEY = os.environ.get("GEMINI_API_KEY", "")
+GROQ = os.environ.get("GROQ_API_KEY", "")
+if not KEY and not GROQ:
+    sys.exit("ERRORE: manca il segreto GEMINI_API_KEY (o GROQ_API_KEY)")
+LIMITE_GEMINI = 240 if GROQ else 720  # con Groq di riserva non si aspetta troppo Gemini
 CATEGORIE = [c.strip() for c in os.environ.get("CATEGORIE", "news").split(",") if c.strip()]
 CAT_RICHIESTA = (os.environ.get("CATEGORIA") or "").strip().lower()
 SITO = os.environ.get("SITO_NOME", "il sito")
@@ -100,8 +104,8 @@ def gemini():
     inizio, ultimo = time.time(), None
     for modello in candidati[:6]:
         for cfg in configurazioni:
-            if time.time() - inizio > 720:
-                sys.exit(f"ERRORE Gemini: troppo tempo ({ultimo})")
+            if time.time() - inizio > LIMITE_GEMINI:
+                raise RuntimeError(f"Gemini: troppo tempo ({ultimo})")
             try:
                 t0 = time.time()
                 a = chiama(modello, cfg)
@@ -121,7 +125,49 @@ def gemini():
                 ultimo = e
                 print("Modello", modello, "non risponde:", str(e)[:200])
                 break
-    sys.exit(f"ERRORE Gemini: {ultimo}")
+    raise RuntimeError(f"Gemini: {ultimo}")
+
+def groq():
+    """Piano B: Groq (gratuito, risposte in pochi secondi), API compatibile OpenAI."""
+    h = {"Authorization": f"Bearer {GROQ}", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+    preferiti = [os.environ.get("GROQ_MODEL"), "openai/gpt-oss-120b", "llama-3.3-70b-versatile", "moonshotai/kimi-k2-instruct"]
+    try:
+        attivi = [m["id"] for m in json.loads(http("https://api.groq.com/openai/v1/models", headers=h, timeout=30)).get("data", [])]
+    except Exception as e:
+        print("Elenco modelli Groq non disponibile:", e)
+        attivi = []
+    candidati = [m for m in preferiti if m and (not attivi or m in attivi)]
+    candidati += [m for m in attivi if m not in candidati and not re.search(r"whisper|guard|tts|vision|compound", m)][:3]
+    istruzioni = (PROMPT + "\n\nRispondi SOLO con un oggetto JSON con le chiavi: titolo, descrizione, categoria "
+                  f"(una tra {', '.join(CATEGORIE)}), parole_chiave_foto, testo (markdown, senza il titolo).")
+    ultimo = None
+    for modello in candidati[:4]:
+        body = json.dumps({"model": modello, "temperature": 0.8, "response_format": {"type": "json_object"},
+                           "messages": [{"role": "user", "content": istruzioni}]}).encode()
+        try:
+            t0 = time.time()
+            r = json.loads(http("https://api.groq.com/openai/v1/chat/completions", body, h, timeout=180))
+            a = json.loads(r["choices"][0]["message"]["content"])
+            if a.get("titolo") and a.get("testo"):
+                print(f"Modello usato: Groq {modello} ({int(time.time() - t0)} s)")
+                return a
+        except Exception as e:
+            ultimo = e
+            dettaglio = e.read().decode("utf-8", "ignore")[:300] if hasattr(e, "read") else ""
+            print("Groq", modello, "errore:", str(e)[:200], dettaglio)
+    raise RuntimeError(f"Groq: {ultimo}")
+
+def scrivi():
+    errori = []
+    for nome, fn, attivo in (("Gemini", gemini, KEY), ("Groq", groq, GROQ)):
+        if not attivo:
+            continue
+        try:
+            return fn()
+        except Exception as e:
+            print(f"{nome} non disponibile, provo il successivo:", e)
+            errori.append(str(e))
+    sys.exit("ERRORE: nessuna IA disponibile - " + " | ".join(errori))
 
 def salva(img, slug):
     os.makedirs("extra/img/articoli", exist_ok=True)
@@ -169,7 +215,7 @@ def foto(parole, slug):
             print("Foto non trovata con", fn.__name__, ":", e)
     return "", ""
 
-a = gemini()
+a = scrivi()
 titolo = " ".join(a["titolo"].split())
 slug = slugify(os.environ.get("SLUG") or titolo)
 categoria = a.get("categoria", "").lower()
@@ -180,7 +226,7 @@ testo = re.sub(r"^#\s+.*\n", "", a["testo"].strip()).strip()  # niente titolo H1
 if credito:
     testo += "\n\n" + credito
 
-meta = {"titolo": titolo, "descrizione": " ".join(a["descrizione"].split())[:200],
+meta = {"titolo": titolo, "descrizione": " ".join(str(a.get("descrizione", "")).split())[:200],
         "categoria": categoria, "immagine": immagine, "data": OGGI, "argomento": " ".join(ARG.split())}
 righe = ["---"] + [f"{k}: {v}" for k, v in meta.items() if v] + ["---", testo, ""]
 os.makedirs("articoli", exist_ok=True)
