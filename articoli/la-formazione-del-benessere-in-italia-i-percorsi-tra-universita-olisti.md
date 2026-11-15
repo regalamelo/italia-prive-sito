@@ -2,7 +2,7 @@
 titolo: Associazione Professionisti Italiani: i corsi dell'Università Olistica per i professionisti del benessere
 descrizione: Chi è l'Associazione Professionisti Italiani APS, quali corsi olistici propone (naturopata, massaggiatore, mental coach) e cosa offre a chi si associa.
 categoria: eccellenze
-immagine: https://images.unsplash.com/photo-1608571702419-f1267e9a18fb?w=1600&q=80&fm=jpg&fit=max
+immagine: https://images.unsplash.com/photo-1514733670139-4d87a1941d55?ixid=M3wxMTM0MDMwfDB8MXxzZWFyY2h8MXx8bmF0dXJvcGF0aWElMjBlcmJlJTIwb2ZmaWNpbmFsaSUyMGUlMjByaW1lZGklMjBuYXR1cmFsaXxlbnwxfDB8fHwxNzk0NzU1NTI3fDA&ixlib=rb-4.1.0&w=1600&q=80&fm=jpg&fit=max
 data: 2026-11-15T15:53:36+01:00
 argomento: i corsi di associazione professionisti italiani università olistica
 ---
@@ -65,4 +65,4 @@ Formazione continua, consulenze personalizzate, supporto nella promozione e l'is
 ### Come si contatta l'associazione?
 Tramite il sito associazione-professionisti-italiani.it, l'email ass.professionisti.italiani@gmail.com o l'info line +39 376 291 8050.
 
-Foto: Kadarius Seegars / Unsplash
+Foto: Lisa Hobbs / Unsplash
