@@ -4,6 +4,13 @@ on:
   schedule:
     - cron: "*/15 * * * *"   # controlla ogni 15 minuti
   workflow_dispatch:          # avvio manuale (pulsante "Run workflow")
+    inputs:
+      argomento:
+        description: "Argomento di un nuovo articolo da far scrivere all'IA (lascia vuoto per aggiornare solo il sito)"
+        required: false
+      categoria:
+        description: "Categoria (facoltativa)"
+        required: false
   repository_dispatch:        # avvio da Albato / n8n ("pubblica" o "nuovo-articolo")
   push:
     branches: [main]
@@ -22,6 +29,10 @@ env:
   DOMINIO: https://italiaprive.it
   MODELLO_ARTICOLO: pizze.html
   CATEGORIE: news,tendenze,storie,eccellenze
+  SITO_NOME: ITALIA PRIVÈ
+  SITO_TEMA: "magazine online per chi ama vivere l'Italia in modo privilegiato: viaggi iconici, lifestyle ricercato, food, moda, eccellenze italiane. Tono elegante e informato."
+  # altri archivi -sito a cui girare lo stesso argomento (separati da virgola), es. regalamelo/altrosito-sito
+  ALTRI_SITI: ""
 
 jobs:
   sync:
@@ -37,6 +48,16 @@ jobs:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
         run: python3 scripts/ricevi_articolo.py
 
+      - name: Scrivi articolo con l'IA (Gemini)
+        id: ia
+        if: (github.event_name == 'repository_dispatch' && github.event.action == 'nuovo-argomento') || (github.event_name == 'workflow_dispatch' && inputs.argomento != '')
+        env:
+          ARGOMENTO: ${{ github.event.client_payload.argomento || inputs.argomento }}
+          CATEGORIA: ${{ github.event.client_payload.categoria || inputs.categoria }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: python3 scripts/genera_articolo.py
+
       - name: Scarica l'export Brizy
         run: git clone --depth 1 "https://github.com/${BRIZY_REPO}.git" /tmp/brizy
 
@@ -50,7 +71,7 @@ jobs:
         run: |
           git config user.name "brizy-sync"
           git config user.email "brizy-sync@users.noreply.github.com"
-          git add -A site articoli
+          git add -A site articoli extra
           if git diff --cached --quiet; then
             echo "Nessuna modifica"
           else
@@ -58,3 +79,16 @@ jobs:
             git pull --rebase -X theirs origin main
             git push
           fi
+
+      - name: Gira l'argomento agli altri siti
+        if: steps.ia.outcome == 'success' && env.ALTRI_SITI != '' && github.event.client_payload.origine == ''
+        env:
+          ARGOMENTO: ${{ github.event.client_payload.argomento || inputs.argomento }}
+          SITI_TOKEN: ${{ secrets.SITI_TOKEN }}
+        run: |
+          for repo in ${ALTRI_SITI//,/ }; do
+            body=$(python3 -c 'import json,os; print(json.dumps({"event_type":"nuovo-argomento","client_payload":{"argomento":os.environ["ARGOMENTO"],"origine":os.environ["GITHUB_REPOSITORY"]}}))')
+            curl -sS -o /dev/null -w "$repo: %{http_code}\n" -X POST \
+              -H "Authorization: Bearer $SITI_TOKEN" -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$repo/dispatches" -d "$body"
+          done
